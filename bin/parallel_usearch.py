@@ -22,6 +22,26 @@ def make_option_parser():
                       default=1,
                       type='int',
                       help="Number of concurrent threads for each usearch process [default %default]")
+    parser.add_option("-A","--max_accepts",
+                      default=2,
+                      type='int',
+                      help="Number of hits to attempt to find for each query seq [default %default]")
+    parser.add_option("-R","--max_rejects",
+                      default=32,
+                      type='int',
+                      help="Number of rejects before calling a query a failure [default %default]")
+    parser.add_option("-I","--pct_ID",
+                      default=.97,
+                      type='float',
+                      help="Percent identity for alignment [default %default]")
+    parser.add_option("-Q","--query_coverage",
+                      default=1.0,
+                      type='float',
+                      help="Fraction of query seq to align [default %default]")
+    parser.add_option("-T","--target_coverage",
+                      default=0.0,
+                      type='float',
+                      help="Fraction of reference seq to align [default %default]")
     parser.add_option("-v","--verbose",
                       action="store_true",
                       default=False,
@@ -33,14 +53,15 @@ def make_option_parser():
     return parser
 
 def run_usearch(query_fp, ref_fp, output_fp, nthreads=1,
-                max_accepts=2, max_rejects=32, query_cov=1.0, target_cov=0):
+                max_accepts=2, max_rejects=32, query_cov=1.0, target_cov=0,
+                pct_ID=0.97):
     """thread worker function"""
     cmd_dict = OrderedDict()
     cmd_dict['usearch7.0'] = ''
     cmd_dict['-usearch_global'] = query_fp
     cmd_dict['-db'] = ref_fp
     cmd_dict['--blast6out'] = output_fp
-    cmd_dict['-id'] = .98
+    cmd_dict['-id'] = pct_ID
     cmd_dict['-query_cov'] = query_cov
     cmd_dict['-target_cov'] = target_cov
     cmd_dict['-maxaccepts'] = max_accepts
@@ -76,7 +97,15 @@ if __name__ == '__main__':
     output_fps = [options.output_fp + '%03d' %(i) for i in xrange(len(ref_fps))]
     for i, ref_fp in enumerate(ref_fps):
         print "starting thread",i + 1,'of', len(ref_fps),'for ref db',ref_fp
-        retvals[i], stdouts[i], stderrs[i] = run_usearch(options.query, ref_fp, output_fps[i], nthreads=options.nthreads)
+        retvals[i], stdouts[i], stderrs[i] = \
+            run_usearch(options.query, 
+                        ref_fp, output_fps[i], 
+                        nthreads=options.nthreads,
+                        max_accepts=options.max_accepts,
+                        max_rejects=options.max_rejects,
+                        query_cov=options.query_coverage,
+                        target_cov=options.target_coverage,
+                        pct_ID=options.pct_ID)
         if retvals[i] != 0:
             sys.stderr.write('Warning: usearch run %d on ref DB %s failed with the following error output:\n' %(i, ref_fp))
             sys.stderr.write(stderrs[i] + '\n')
