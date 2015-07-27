@@ -21,7 +21,8 @@ def make_option_parser():
     parser.add_option("-t","--output_type",
                       type='string',
                       default='fasta',
-                      help="Output type: fasta, text, or count (print count only) (default %default)",)
+                      help=("Output type: fasta, text, or count (print count only)"
+                      		" (default %default)"))
     parser.add_option("-v","--verbose",
                       action="store_true",
                       default=False,
@@ -82,7 +83,8 @@ if __name__ == '__main__':
                         kmers.add(kmer)
                         
                     	# print the kmer (and its sequence ID if fasta output)
-                        if options.output_type == 'text' or options.output_type == 'fasta':
+                        if options.output_type == 'text' \
+                        		or options.output_type == 'fasta':
                             if options.output_type == 'fasta':
                             	kmer_id = '>%s_%09d' %(seq_id,i)
                                 output_file.write(kmer_id + '\n')
