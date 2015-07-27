@@ -6,6 +6,9 @@ from optparse import OptionParser
 import multiprocessing
 from subprocess import Popen, PIPE, STDOUT
 from collections import OrderedDict
+import math
+import time
+from datetime import timedelta
 
 def make_option_parser():
     parser = OptionParser(usage="usage: %prog [options] filename",
@@ -46,6 +49,10 @@ def make_option_parser():
                       action="store_true",
                       default=False,
                       help="Verbose output (default %default)",)
+    parser.add_option("-l","--split_lines",
+                      default=20000,
+                      type='int',
+                      help="Number of sequences per query split file (default %default)")
     parser.add_option("-o","--output_fp",
                       type="string",
                       default=None,
@@ -54,7 +61,7 @@ def make_option_parser():
 
 def run_usearch(query_fp, ref_fp, output_fp, nthreads=1,
                 max_accepts=2, max_rejects=32, query_cov=1.0, target_cov=0,
-                pct_ID=0.97):
+                pct_ID=0.97,verbose=False):
     """thread worker function"""
     cmd_dict = OrderedDict()
     cmd_dict['usearch7.0'] = ''
@@ -70,16 +77,35 @@ def run_usearch(query_fp, ref_fp, output_fp, nthreads=1,
     cmd_dict['-threads'] = nthreads
 
     cmd = ' '.join([key + ' ' + str(cmd_dict[key]) for key in cmd_dict])
-    print cmd
+    if verbose:
+        print cmd
     proc = Popen(cmd,shell=True,universal_newlines=True,stdout=PIPE,stderr=PIPE)
     stdout, stderr = proc.communicate()
     return_value = proc.returncode
     return return_value, stdout, stderr
 
+def run_command(cmd, verbose=False):
+    if verbose:
+        print cmd
+    proc = Popen(cmd,shell=True,universal_newlines=True,stdout=PIPE,stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    return_value = proc.returncode
+    return return_value, stdout, stderr
 
+def check_command_args(options, args):
+    required = ['query','ref','output_fp']
+    if options.query is None:
+        raise ValueError('Requires these parameters: ' + ', '.join(required))
+    if options.ref is None:
+        raise ValueError('Requires these parameters: ' + ', '.join(required))
+    if options.output_fp is None:
+        raise ValueError('Requires these parameters: ' + ', '.join(required))
+    
 if __name__ == '__main__':
     parser = make_option_parser()
     (options, args) = parser.parse_args()
+    
+    check_command_args(options, args)
 
     processes = []
 
@@ -94,28 +120,65 @@ if __name__ == '__main__':
     retvals = [''] * len(ref_fps)
     stdouts = [''] * len(ref_fps)
     stderrs = [''] * len(ref_fps)
-    output_fps = [options.output_fp + '%03d' %(i) for i in xrange(len(ref_fps))]
-    for i, ref_fp in enumerate(ref_fps):
-        print "starting thread",i + 1,'of', len(ref_fps),'for ref db',ref_fp
-        retvals[i], stdouts[i], stderrs[i] = \
-            run_usearch(options.query, 
-                        ref_fp, output_fps[i], 
-                        nthreads=options.nthreads,
-                        max_accepts=options.max_accepts,
-                        max_rejects=options.max_rejects,
-                        query_cov=options.query_coverage,
-                        target_cov=options.target_coverage,
-                        pct_ID=options.pct_ID)
-        if retvals[i] != 0:
-            sys.stderr.write('Warning: usearch run %d on ref DB %s failed with the following error output:\n' %(i, ref_fp))
-            sys.stderr.write(stderrs[i] + '\n')
 
-    # merge output files
-    print 'Merging output files to',options.output_fp
-    output_fp = open(options.output_fp,'w')
-    for output_fp_i in output_fps:
-        for line in open(output_fp_i,'U'):
-            output_fp.write(line)
-        os.remove(output_fp_i)
-    output_fp.close()
+    output_fps = [options.output_fp + '%03d' %(i) for i in xrange(len(ref_fps))]
     
+    # write query file out in batches; do search on each one.
+    nseqs = 0
+    for line in open(options.query,'U'):
+        if line[0] == '>':
+            nseqs += 1
+    
+    print nseqs,'query sequences and',len(ref_fps),'reference databases.'
+
+    starttime = time.time()
+    seqcount = 0
+    output_file = open(options.output_fp,'w')
+    tmp_query_fp = options.output_fp + '_partial_query.tmp'
+    tmp_query_file = open(tmp_query_fp,'w')
+    tmp_output_fp = options.output_fp + '_partial_output.tmp'
+    header = ''
+    totalsearches = math.ceil(nseqs/options.split_lines) * len(ref_fps)
+    nsearches = 0
+    for line in open(options.query,'U'):
+        tmp_query_file.write(line)
+        if not line[0] == '>':
+            seqcount += 1
+            if seqcount % options.split_lines == 0 or seqcount == nseqs:
+                tmp_query_file.close()
+
+                for i, ref_fp in enumerate(ref_fps):
+                    currtime = time.time()
+                    elapsedtime = currtime - starttime
+                    elapsedtimestr = str(timedelta(seconds=round(elapsedtime)))
+                    if nsearches > 0:
+                        remtime = elapsedtime / float(nsearches) * (totalsearches - nsearches)
+                        remtimestr = str(timedelta(seconds=round(remtime)))
+                    else:
+                        remtimestr = 'Unknown time'
+                    print elapsedtimestr, "searching query sequence",seqcount,'of',nseqs,'against ref', i+1,'of',str(len(ref_fps)) + ';',remtimestr,'remaining.'
+                    retvals[i], stdouts[i], stderrs[i] = \
+                        run_usearch(tmp_query_fp, 
+                                ref_fp, tmp_output_fp, 
+                                nthreads=options.nthreads,
+                                max_accepts=options.max_accepts,
+                                max_rejects=options.max_rejects,
+                                query_cov=options.query_coverage,
+                                target_cov=options.target_coverage,
+                                pct_ID=options.pct_ID, verbose=options.verbose)
+                    nsearches += 1
+                    if retvals[i] != 0:
+                        sys.stderr.write('Warning: usearch run %d on ref DB %s failed with the following error output:\n' %(i, ref_fp))
+                        sys.stderr.write(stderrs[i] + '\n')
+                        raise ValueError('USEARCH error - if USEARCH ran out of memory, decrease --split_lines.')
+                    else:
+                        for line in open(tmp_output_fp,'U'):
+                            output_file.write(line)
+                if seqcount < nseqs:
+                    # if there are more seqs to search, reopen the temp query file
+                    tmp_query_file = open(tmp_query_fp,'w')
+
+    # remove temp output files and query files
+    os.remove(tmp_query_fp)
+    os.remove(tmp_output_fp)
+    output_file.close()
