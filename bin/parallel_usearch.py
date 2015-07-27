@@ -21,6 +21,10 @@ def make_option_parser():
                       default=None,
                       type='string',
                       help="Path to directory containing one or more reference udb files, or comma-separated list of udb files [required]")
+    parser.add_option("-u","--usearch_command",
+                      default='usearch8.0',
+                      type='string',
+                      help="Path to usearch command [required]") 
     parser.add_option("-n","--nthreads",
                       default=1,
                       type='int',
@@ -59,12 +63,12 @@ def make_option_parser():
                       help="Path to output file [required]",)
     return parser
 
-def run_usearch(query_fp, ref_fp, output_fp, nthreads=1,
+def run_usearch(query_fp, ref_fp, output_fp, usearch_cmd='usearch8.0',nthreads=1,
                 max_accepts=2, max_rejects=32, query_cov=1.0, target_cov=0,
                 pct_ID=0.97,verbose=False):
     """thread worker function"""
     cmd_dict = OrderedDict()
-    cmd_dict['usearch7.0'] = ''
+    cmd_dict[usearch_cmd] = ''
     cmd_dict['-usearch_global'] = query_fp
     cmd_dict['-db'] = ref_fp
     cmd_dict['--blast6out'] = output_fp
@@ -114,6 +118,7 @@ if __name__ == '__main__':
         for fp in os.listdir(options.ref):
             if fp.endswith('.udb'):
                 ref_fps.append(os.path.join(options.ref,fp))
+        ref_fps = sorted(ref_fps)
     else:
         ref_fps = options.ref.strip().split(',')
 
@@ -160,6 +165,7 @@ if __name__ == '__main__':
                     retvals[i], stdouts[i], stderrs[i] = \
                         run_usearch(tmp_query_fp, 
                                 ref_fp, tmp_output_fp, 
+                                usearch_cmd=options.usearch_command,
                                 nthreads=options.nthreads,
                                 max_accepts=options.max_accepts,
                                 max_rejects=options.max_rejects,
