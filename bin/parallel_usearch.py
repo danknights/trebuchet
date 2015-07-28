@@ -49,6 +49,10 @@ def make_option_parser():
                       default=0.0,
                       type='float',
                       help="Fraction of reference seq to align [default %default]")
+    parser.add_option("-z","--reverse_complement",
+                      action="store_true",
+                      default=False,
+                      help="Search both strands (default %default)",)
     parser.add_option("-v","--verbose",
                       action="store_true",
                       default=False,
@@ -60,12 +64,12 @@ def make_option_parser():
     parser.add_option("-o","--output_fp",
                       type="string",
                       default=None,
-                      help="Path to output file [required]",)
+                      help="Path to output file [default os.path.splitext(os.path.basename(options.query))[0] + '-usearch-out.txt']",)
     return parser
 
 def run_usearch(query_fp, ref_fp, output_fp, usearch_cmd='usearch8.0',nthreads=1,
                 max_accepts=2, max_rejects=32, query_cov=1.0, target_cov=0,
-                pct_ID=0.97,verbose=False):
+                reverse_complement=True, pct_ID=0.97,verbose=False):
     """thread worker function"""
     cmd_dict = OrderedDict()
     cmd_dict[usearch_cmd] = ''
@@ -77,7 +81,11 @@ def run_usearch(query_fp, ref_fp, output_fp, usearch_cmd='usearch8.0',nthreads=1
     cmd_dict['-target_cov'] = target_cov
     cmd_dict['-maxaccepts'] = max_accepts
     cmd_dict['-maxrejects'] = max_rejects
-    cmd_dict['-strand'] = 'both'
+    if reverse_complement:
+        cmd_dict['-strand'] = 'both'
+    else:
+        cmd_dict['-strand'] = 'plus'
+
     cmd_dict['-threads'] = nthreads
 
     cmd = ' '.join([key + ' ' + str(cmd_dict[key]) for key in cmd_dict])
@@ -102,13 +110,13 @@ def check_command_args(options, args):
         raise ValueError('Requires these parameters: ' + ', '.join(required))
     if options.ref is None:
         raise ValueError('Requires these parameters: ' + ', '.join(required))
-    if options.output_fp is None:
-        raise ValueError('Requires these parameters: ' + ', '.join(required))
     
 if __name__ == '__main__':
     parser = make_option_parser()
     (options, args) = parser.parse_args()
-    
+
+    if options.output_fp is None:
+        options.output_fp = os.path.splitext(os.path.basename(options.query))[0] + '-usearch-out.txt'
     check_command_args(options, args)
 
     processes = []
@@ -143,7 +151,7 @@ if __name__ == '__main__':
     tmp_query_file = open(tmp_query_fp,'w')
     tmp_output_fp = options.output_fp + '_partial_output.tmp'
     header = ''
-    totalsearches = math.ceil(nseqs/options.split_lines) * len(ref_fps)
+    totalsearches = math.ceil(nseqs/min(nseqs,options.split_lines)) * len(ref_fps)
     nsearches = 0
     for line in open(options.query,'U'):
         tmp_query_file.write(line)
@@ -171,6 +179,7 @@ if __name__ == '__main__':
                                 max_rejects=options.max_rejects,
                                 query_cov=options.query_coverage,
                                 target_cov=options.target_coverage,
+                                reverse_complement=options.reverse_complement,
                                 pct_ID=options.pct_ID, verbose=options.verbose)
                     nsearches += 1
                     if retvals[i] != 0:
