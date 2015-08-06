@@ -33,18 +33,22 @@ def make_option_parser():
                       action="store_true",
                       default=False,
                       help="Reverse complement the reverse primer before matching (default %default)",)
-    parser.add_option("-u","--embalmer_command",
+    parser.add_option("-c","--embalmer_command",
                       default='embalm',
                       type='string',
                       help="Path to embalmer command [required]") 
     parser.add_option("-n","--n_mismatches",
                       default=1,
                       type='int',
-                      help="Number of primer mismatches allowed. [default %default]")
+                      help="Number of primer mismatches allowed. [default %default]") 
     parser.add_option("-p","--padding",
                       default=0,
                       type='int',
                       help="Additional nucleotides to include on either end of the region. If this value is greater than then length of either of the primers the program will simply return up to the end of that primer. [default %default]")
+    parser.add_option("-m","--min_length",
+                      default=25,
+                      type='int',
+                      help="Minimum trimmed sequence length. [default %default]")
     parser.add_option("-T","--n_threads",
                       default=1,
                       type='int',
@@ -139,17 +143,21 @@ if __name__ == '__main__':
     for line in open(fwd_hits_fp,'U'):
         line = line.strip()
         words = line.split('\t')
-        starts[words[1]] = int(words[9])
+        refID = words[1].split()[0]
+        starts[refID] = int(words[9])
 
     for line in open(rev_hits_fp,'U'):
         line = line.strip()
         words = line.split('\t')
-        ends[words[1]] = int(words[8])
+        refID = words[1].split()[0]
+        ends[refID] = int(words[8])
 
     # get intersection
     for key in starts:
         if ends.has_key(key):
-            pos[key] = [starts[key],ends[key]]
+            # only add this sequence if it passes the minimum length threshold
+            if ends[key] - starts[key] > options.min_length:
+                pos[key] = [starts[key],ends[key]]
     if len(pos) == 0:
         raise ValueError("Error: There are were no valid alignments. Does reverse primer need to be reverse-complemented?")
 
@@ -171,9 +179,9 @@ if __name__ == '__main__':
             seqid = line.split()[0][1:]
         else:
             if pos.has_key(seqid):
-                outf.write(header + '\n')
                 startix = pos[seqid][0]-1
                 endix = pos[seqid][1]-1
+                outf.write(header + '\n')
                 startix = max(startix - start_padding, 0)
                 endix = min(endix + end_padding, len(line))
                 outf.write(line[startix:endix] + '\n')
