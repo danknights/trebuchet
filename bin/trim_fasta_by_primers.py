@@ -7,6 +7,13 @@ import tempfile
 from subprocess import Popen, PIPE, STDOUT
 from optparse import OptionParser
 
+# note these are not reverse-comlemented
+PRIMERS = {}
+PRIMERS['V3f-Illumina'] = "CCTACGGGNGGCWGCAG" # http://support.illumina.com/documents/documentation/chemistry_documentation/16s/16s-metagenomic-library-prep-guide-15044223-b.pdf
+PRIMERS['V4f-EMP'] = "GTGYCAGCMGCCGCGGTAA" # EMP website
+PRIMERS['V4r-EMP'] = "GGACTACNVGGGTWTCTAAT" # EMP website
+PRIMERS['V4r-Illumina'] = "GACTACHVGGGTATCTAATCC" # http://support.illumina.com/documents/documentation/chemistry_documentation/16s/16s-metagenomic-library-prep-guide-15044223-b.pdf
+
 def make_option_parser():
     parser = OptionParser(usage="usage: %prog [options] filename",
                           version="%prog 1.0")
@@ -135,6 +142,8 @@ if __name__ == '__main__':
     for key in starts:
         if ends.has_key(key):
             pos[key] = [starts[key],ends[key]]
+    if len(pos) == 0:
+        raise ValueError("Error: There are were no valid alignments. Does reverse primer need to be reverse-complemented?")
 
     # trim fasta
     if options.verbose:
@@ -154,7 +163,5 @@ if __name__ == '__main__':
     outf.close()
 
     to_remove = [fwd_fp, fwd_hits_fp, rev_fp, rev_hits_fp]
-    if options.reverse_complement:
-        to_remove.append(rev_rc_fp)
     for f in to_remove:
         os.remove(f)
