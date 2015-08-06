@@ -20,9 +20,11 @@ def make_option_parser():
                       help="Length of kmers (required)")
     parser.add_option("-t","--output_type",
                       type='string',
-                      default='fasta',
-                      help=("Output type: fasta, text, or count (print count only)"
-                      		" (default %default)"))
+                      default='sample_table',
+                      help=("Output type: fasta, text, sample_table, table, count."
+                      		"'sample_table' means a table of counts for each sample, assuming QIIME-style fasta headers; "
+                      		"'table' is a able of overall count per kmer; "
+                      		"'count' gives the total number of kmers (default %default)."))
     parser.add_option("-v","--verbose",
                       action="store_true",
                       default=False,
@@ -48,6 +50,8 @@ if __name__ == '__main__':
 
 
     kmers = set() # set to hold unique kmers, faster than dict or ordered list
+    kmer_counts = dict() # only used if --output_type == 'table'
+    sample_kmer_counts = dict() # only used if --output_type == 'sample_table'
 
     # print new kmers as we read them
     # this will reduce memory requirements because
@@ -57,38 +61,46 @@ if __name__ == '__main__':
 
         if line.startswith('>'):
         	# if this is a sequence header
-
             count += 1
             if options.verbose and count % 100000 == 0:
                 print count
                 
             # extract only the sequence ID (split on whitespace, first element)
             seq_id = line[1:].split()[0]
+            sample_id = seq_id.split('_')[0]
         else:
-        	# if this line contains sequence
-
         	# remove trailing whitespace characters
             seq = line.strip()
             
-            if len(seq) >= k:
-	            # if this sequence is long enough to have a k-mer
+            if len(seq) < k:
+                continue
+            
+            # if this sequence is long enough to have a k-mer
 
-				# step through sequence on base at a time
-                for i in xrange(0,len(seq)-k + 1):
-                	# current kmer is a substring of length k
-                    kmer = seq[i:i+k]
-                    
-                    if not kmer in kmers:
-                    	# this kmer is not in the current set of kmers; add it
-                        kmers.add(kmer)
-                        
-                    	# print the kmer (and its sequence ID if fasta output)
-                        if options.output_type == 'text' \
-                        		or options.output_type == 'fasta':
-                            if options.output_type == 'fasta':
-                            	kmer_id = '>%s_%09d' %(seq_id,i)
-                                output_file.write(kmer_id + '\n')
-                            output_file.write(kmer + '\n')
+            # step through sequence on base at a time
+            for i in xrange(0,len(seq)-k + 1):
+                # current kmer is a substring of length k
+                kmer = seq[i:i+k]
+
+                # add to set of kmers
+                kmers.add(kmer)
+
+                if options.output_type == 'text' or options.output_type == 'fasta':
+                    # print the kmer (and its sequence ID if fasta output)
+                    if options.output_type == 'fasta':
+                        kmer_id = '>%s_%09d' %(seq_id,i)
+                        output_file.write(kmer_id + '\n')
+                    output_file.write(kmer + '\n')
+                elif options.output_type == 'sample_table':
+                    if not sample_kmer_counts.has_key(sample_id):
+                        sample_kmer_counts[sample_id] = dict()
+                    if not sample_kmer_counts[sample_id].has_key(kmer):
+                        sample_kmer_counts[sample_id][kmer] = 0
+                    sample_kmer_counts[sample_id][kmer] += 1
+                elif options.output_type == 'table':
+                    if kmer not in  kmer_counts:
+                        kmer_counts[kmer] = 0
+                    kmer_counts[kmer] += 1
 
     if options.output_type == 'count':
 	    # print count if requested
@@ -96,6 +108,25 @@ if __name__ == '__main__':
             output_file.write(str(len(kmers)) + '\n')
         else:
             print len(kmers)
-    else:
+    elif options.output_type == 'table':
+        kmers = sorted(kmers)
+        for kmer in kmers:
+            output_file.write(kmer + '\t' + str(kmer_counts[kmer]) + '\n')
+    elif options.output_type == 'sample_table':
+        sample_ids = sorted(sample_kmer_counts.keys())
+        kmers = sorted(kmers)
+        output_file.write('#kmer\t' + '\t'.join(sample_ids) + '\n')
+        for kmer in kmers:
+            output_file.write(kmer)
+            for sample_id in sample_ids:
+                if sample_kmer_counts[sample_id].has_key(kmer):
+                    output_file.write('\t' + str(sample_kmer_counts[sample_id][kmer]))
+                else:
+                    output_file.write('\t0')
+            output_file.write('\n')
+    
+    if options.output_file is not None:
         output_file.close()
+
+        
 
