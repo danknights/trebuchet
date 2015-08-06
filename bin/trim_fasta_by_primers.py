@@ -41,6 +41,10 @@ def make_option_parser():
                       default=1,
                       type='int',
                       help="Number of primer mismatches allowed. [default %default]")
+    parser.add_option("-p","--padding",
+                      default=0,
+                      type='int',
+                      help="Additional nucleotides to include on either end of the region. If this value is greater than then length of either of the primers the program will simply return up to the end of that primer. [default %default]")
     parser.add_option("-T","--n_threads",
                       default=1,
                       type='int',
@@ -49,6 +53,10 @@ def make_option_parser():
                       action="store_true",
                       default=False,
                       help="Verbose output (default %default)",)
+    parser.add_option("-d","--dont_delete",
+                      action="store_true",
+                      default=False,
+                      help="Don't delete temporary files (default %default)",)
     parser.add_option("-o","--output_fp",
                       type="string",
                       default=None,
@@ -151,6 +159,11 @@ if __name__ == '__main__':
     outf = open(options.output_fp,'w')
     header = ''
     seqid = ''
+
+    # if user requested padding, ensure it doesn't go past the primers
+    start_padding = min(len(options.forward_primer), options.padding)
+    end_padding = min(len(options.reverse_primer), options.padding)
+
     for line in open(options.input_fasta,'U'):
         line = line.strip()
         if line.startswith('>'):
@@ -159,9 +172,14 @@ if __name__ == '__main__':
         else:
             if pos.has_key(seqid):
                 outf.write(header + '\n')
-                outf.write(line[(pos[seqid][0]):(pos[seqid][1])] + '\n')
+                startix = pos[seqid][0]-1
+                endix = pos[seqid][1]-1
+                startix = max(startix - start_padding, 0)
+                endix = min(endix + end_padding, len(line))
+                outf.write(line[startix:endix] + '\n')
     outf.close()
 
     to_remove = [fwd_fp, fwd_hits_fp, rev_fp, rev_hits_fp]
-    for f in to_remove:
-        os.remove(f)
+    if not options.dont_delete:
+        for f in to_remove:
+            os.remove(f)
