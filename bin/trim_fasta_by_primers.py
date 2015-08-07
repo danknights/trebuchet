@@ -93,7 +93,7 @@ if __name__ == '__main__':
     fout.close()
 
     fout = open(rev_fp,'w')
-    fout.write('>Forward\n'+options.reverse_primer + '\n')
+    fout.write('>Reverse\n'+options.reverse_primer + '\n')
     fout.close()
 
     # RC the reverse primer if request (requires QIIME)
