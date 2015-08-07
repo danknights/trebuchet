@@ -60,13 +60,15 @@ if __name__ == '__main__':
         ref = words[1].split()[0]
         
         # only keep this as potential if it resolves to species
-        if len(taxa[query]) > 7:
-            if taxa[query][6] != 's__' and taxa[query[6]] != 'unidentified':
+        if len(taxa[query]) > 6:
+            if taxa[query][6] != 's__' and taxa[query][6] != 'unidentified':
                 potential_list.add(query)
         
-            # add to bad list if its match has a different species
-            if taxa[ref][6] != taxa[query][6]:
-                bad_list.add(query)
+                # add to bad list if its match has a different species
+                # ignore the match if it is not resolved to species level
+                if len(taxa[ref]) > 6:
+                    if taxa[ref][6] != taxa[query][6]:
+                        bad_list.add(query)
 
     # print only those in the good list and not the bad list
     good_taxa = set()
