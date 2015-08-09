@@ -1,7 +1,7 @@
 # usage
 # find_distinct_taxa.py otu_by_otu_matches.txt taxonomy outfile.txt
 
-import sys
+import sys, os
 from optparse import OptionParser
 
 def make_option_parser():
@@ -64,18 +64,17 @@ if __name__ == '__main__':
         words = line.split('\t')
         query = words[0].split()[0]
         ref = words[1].split()[0]
-        query_tax = taxa[query].
         consensus = os.path.commonprefix([])
+
+
+        # set this query's taxonomy to the most specific consensus
         if not best_labels.has_key(query):
+            best_labels[query] = taxa[query]
+        else:
+            best_labels[query] = os.path.commonprefix([taxa[ref], best_labels[query]])
 
         # only keep this as potential if it resolves to species
         if len(taxa[query]) > 6:
-
-            # set this query's taxonomy to the most specific consensus
-            if not best_labels.has_key(query):
-                best_labels[query] = taxa[query]
-            else:
-                best_labels[query] = os.path.commonprefix([taxa[query], best_labels[query]])
 
             if taxa[query][6] != 's__' and taxa[query][6] != 'unidentified':
                 potential_list.add(query)
@@ -93,7 +92,7 @@ if __name__ == '__main__':
     #     if not key in bad_list:
     #         good_taxa.add('; '.join(taxa[key]))
 
-    good_taxa = set(['; '.join(taxon) for taxon in best_labels.keys()])  
+    good_taxa = set(['; '.join(taxonomy) for taxon_id, taxonomy in best_labels.iteritems()]) 
 
     outf = open(options.output_fp,'w')
     for taxon in sorted(good_taxa):
