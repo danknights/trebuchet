@@ -23,6 +23,10 @@ def make_option_parser():
                       action="store_true",
                       default=False,
                       help="Verbose output (default %default)",)
+    parser.add_option("-c","--consensus",
+                      action="store_true",
+                      default=False,
+                      help="Report consensus (lowest) taxonomy (default %default)",)
     parser.add_option("-o","--output_fp",
                       type="string",
                       default=None,
@@ -41,7 +45,7 @@ if __name__ == '__main__':
     for line in open(options.taxonomy_file,'r'):
         words = line.strip().split('\t')
         taxon_ID = words[0]
-        taxonomy = words[1].split(';')
+        taxonomy = words[1].replace(';',' ').split()
         taxonomy = [level.strip() for level in taxonomy]
         taxa[taxon_ID] = taxonomy
     
@@ -51,6 +55,8 @@ if __name__ == '__main__':
     #
     # if it matches any other otus in a different species,
     # add it to the ambiguous list
+    best_labels = {} # {taxon_ID:consensus taxonomy, ...}
+    
     potential_list = set()
     bad_list = set()
 
@@ -58,9 +64,19 @@ if __name__ == '__main__':
         words = line.split('\t')
         query = words[0].split()[0]
         ref = words[1].split()[0]
-        
+        query_tax = taxa[query].
+        consensus = os.path.commonprefix([])
+        if not best_labels.has_key(query):
+
         # only keep this as potential if it resolves to species
         if len(taxa[query]) > 6:
+
+            # set this query's taxonomy to the most specific consensus
+            if not best_labels.has_key(query):
+                best_labels[query] = taxa[query]
+            else:
+                best_labels[query] = os.path.commonprefix([taxa[query], best_labels[query]])
+
             if taxa[query][6] != 's__' and taxa[query][6] != 'unidentified':
                 potential_list.add(query)
         
@@ -71,13 +87,16 @@ if __name__ == '__main__':
                         bad_list.add(query)
 
     # print only those in the good list and not the bad list
-    good_taxa = set()
-    for key in potential_list:
-        if not key in bad_list:
-            good_taxa.add('; '.join(taxa[key]))
+
+    # good_taxa = set()
+    # for key in potential_list:
+    #     if not key in bad_list:
+    #         good_taxa.add('; '.join(taxa[key]))
+
+    good_taxa = set(['; '.join(taxon) for taxon in best_labels.keys()])  
 
     outf = open(options.output_fp,'w')
     for taxon in sorted(good_taxa):
         outf.write(taxon + '\n')
     outf.close()
-    
+
