@@ -2,7 +2,12 @@
 # makes a directory in folder out_basename containing stdout, stderr, pbs file
 #
 # usage:
-# run_via_qsub.py -N jobname --command "command" --wallclock "96:00:00" --out_basename stdout_stderr_basename --queue small --nodes 1 --ppn 8 --mem 32
+# run_via_qsub.py -N jobname --command "command" --wallclock "96:00:00" --out_basename stdout_stderr_basename --queue small --nodes 1 --ppn 8 --mem 32gb
+# 
+# or for default settings:
+# run_via_qsub.py -command "command goes here; another command" 
+
+
 from __future__ import division
 from __future__ import print_function
 
@@ -29,9 +34,9 @@ def make_option_parser():
                       type='string',
                       help="Name (default random string)")
     parser.add_option("-o", "--out_basedir",
-                      default='~',
+                      default='.',
                       type='string',
-                      help="Default directory for output files (default is '~')")
+                      help="Default directory for output files (default is '.')")
     parser.add_option("-q", "--queue",
                       default="small",
                       type='string',
@@ -47,7 +52,7 @@ def make_option_parser():
     parser.add_option("-m", "--mem",
                       default='16gb',
                       type='string',
-                      help="RAM per node (default 16gb)")
+                      help="RAM per 'node' (note: on the 'small' queue MSI allows node sharing) (default 16gb)")
     parser.add_option("-e", "--email",
                       default=None,
                       type='string',
