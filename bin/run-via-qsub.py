@@ -89,10 +89,10 @@ if __name__ == '__main__':
     pbs_lines = []
     pbs_lines.append('#!/bin/bash -l')
     pbs_lines.append('#PBS -l walltime=%s,nodes=%d:ppn=%d,mem=%s' %(options.wallclock,options.nodes,options.ppn,options.mem))
-    pbs_lines.append('#PBS -m abe')
 
     if options.email is not None:
         pbs_lines.append('#PBS -M %s' %(options.email))
+        pbs_lines.append('#PBS -m abe')
     pbs_lines.append('#PBS -N %s' %(options.name))
     pbs_lines.append('#PBS -o %s' %(stdout_fp))
     pbs_lines.append('#PBS -e %s' %(stderr_fp))
